@@ -28,7 +28,7 @@ async function fetchAccessToken() {
   if (data.access_token) {
     accessToken = data.access_token;
     tokenExpiresAt = Date.now() + TOKEN_LIFETIME * 1000;
-    console.log("Spotify access token fetched.");
+    console.log("🦎 Spotify access token fetched.");
     return accessToken;
   } else {
     throw new Error("Failed to fetch Spotify access token");

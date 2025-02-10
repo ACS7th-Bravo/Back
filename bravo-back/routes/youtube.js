@@ -12,7 +12,9 @@ function rotateApiKey() {
   currentApiKeyIndex = (currentApiKeyIndex + 1) % youtubeApiKeys.length;
   currentApiKey = youtubeApiKeys[currentApiKeyIndex];
   console.log(
-    `🔄 ${currentApiKeyIndex + 1}번째 YouTube API 키 변경됨: ${currentApiKey}`
+    `[🔄 ${new Date().toLocaleString()}]  ${
+      currentApiKeyIndex + 1
+    }번째 YouTube API 키 변경됨: ${currentApiKey}`
   );
 }
 setInterval(rotateApiKey, 2 * 60 * 1000);
