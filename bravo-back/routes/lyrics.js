@@ -159,7 +159,7 @@ router.get('/', async (req, res) => {
   // 백엔드에는 타임스탬프와 텍스트를 분리한 로그를 남기고,
   // 프론트엔드에는 타임스탬프가 제거된 순수 가사 텍스트만 전달
   const pattern = /\[(\d{2}:\d{2}\.\d{2})\]\s*(.*)/;
-  const lines = lyrics.trim().split("\n");
+  const lines = lyrics.split("\n");
   const result = [];
   for (let line of lines) {
     const match = line.match(pattern);
