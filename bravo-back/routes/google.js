@@ -18,7 +18,7 @@ const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || "http://localhost
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret_here";
 
 // 추가: 프론트엔드 URL (.env 파일에 FRONTEND_URL 설정)
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5174";
 
 const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 

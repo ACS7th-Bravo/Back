@@ -11,6 +11,9 @@ const youtubeApiKeys = process.env.YOUTUBE_API_KEYS.split(",");
 let currentApiKeyIndex = 0;
 let currentApiKey = youtubeApiKeys[currentApiKeyIndex];
 
+console.log(`[📢 ${new Date().toLocaleString()}] 첫 번째 YouTube API 키 할당됨: ${currentApiKey}`);
+
+
 // API 키 로테이션 함수 (2분마다 실행)
 function rotateApiKey() {
   currentApiKeyIndex = (currentApiKeyIndex + 1) % youtubeApiKeys.length;
