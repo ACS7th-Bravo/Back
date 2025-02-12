@@ -1,7 +1,12 @@
 // /bravo-back/routes/spotify.js
-const express = require("express");
+import express from "express";
+import fetch from "node-fetch";
+import dotenv from 'dotenv';
+
+
+dotenv.config()
+
 const router = express.Router();
-const fetch = require("node-fetch");
 
 const clientId = process.env.SPOTIFY_CLIENT_ID;
 const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
@@ -28,7 +33,7 @@ async function fetchAccessToken() {
   if (data.access_token) {
     accessToken = data.access_token;
     tokenExpiresAt = Date.now() + TOKEN_LIFETIME * 1000;
-    console.log("🦎 Spotify access token fetched.");
+    console.log("Spotify access token fetched.");
     return accessToken;
   } else {
     throw new Error("Failed to fetch Spotify access token");
@@ -42,7 +47,6 @@ async function getAccessToken() {
   return accessToken;
 }
 
-// 기존 Spotify 검색 엔드포인트 (한국 리전)
 // GET /api/spotify/search?q=<검색어>
 router.get("/search", async (req, res) => {
   const query = req.query.q;
@@ -52,14 +56,9 @@ router.get("/search", async (req, res) => {
   try {
     const token = await getAccessToken();
     const response = await fetch(
-      `https://api.spotify.com/v1/search?q=${encodeURIComponent(
-        query
-      )}&type=track&limit=20`,
+      `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=20`,
       {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Accept-Language": "ko-KR", // 한국 리전 정보를 위해
-        },
+        headers: { Authorization: `Bearer ${token}` },
       }
     );
     if (!response.ok) {
@@ -74,32 +73,5 @@ router.get("/search", async (req, res) => {
   }
 });
 
-// 신규 엔드포인트: 특정 트랙의 상세 정보를 미국 리전으로 가져오기
-// GET /api/spotify/track?trackId=<트랙ID>&market=US
-router.get("/track", async (req, res) => {
-  const trackId = req.query.trackId;
-  // 기본 market은 미국(US)로 지정
-  const market = req.query.market || "US";
-  if (!trackId) {
-    return res.status(400).json({ error: "trackId parameter is required" });
-  }
-  try {
-    const token = await getAccessToken();
-    const response = await fetch(
-      `https://api.spotify.com/v1/tracks/${trackId}?market=${market}`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      }
-    );
-    if (!response.ok) {
-      return res.status(response.status).json({ error: "Spotify API error" });
-    }
-    const data = await response.json();
-    res.json(data);
-  } catch (error) {
-    console.error("Error in /api/spotify/track:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
 
-module.exports = router;
+export default router;

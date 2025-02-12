@@ -1,7 +1,11 @@
 // /bravo-back/routes/youtube.js
-const express = require("express");
+import dotenv from 'dotenv';
+dotenv.config();
+
+import express from "express";
+import fetch from "node-fetch";
+
 const router = express.Router();
-const fetch = require("node-fetch");
 
 const youtubeApiKeys = process.env.YOUTUBE_API_KEYS.split(",");
 let currentApiKeyIndex = 0;
@@ -46,4 +50,4 @@ router.get("/search", async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;
