@@ -67,6 +67,7 @@ async function fetchLyricsLrcLib(song, artist, album = null, duration = null, re
 async function fetchLyricsMusixmatch(song, artist, retries = 1) {
   const cleanSong = cleanQueryString(song);
   const cleanArtist = cleanQueryString(artist);
+  console.log("test", cleanSong, cleanArtist)
   const url = "https://musixmatch-lyrics-songs.p.rapidapi.com/songs/lyrics";
   const querystring = new URLSearchParams({
     t: cleanSong,

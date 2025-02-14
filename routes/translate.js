@@ -509,11 +509,24 @@ function containsKorean(text) {
 async function translateWithPapago(originalLyrics) {
   console.log(":시계_반대_방향_화살표: Papago에서 1차 번역 진행 중...");
   const startTime = performance.now();
-  const browser = await puppeteer.launch({ headless: false });
+  const browser = await puppeteer.launch({
+    headless: true, // GUI 없이 실행
+    args: [
+      "--no-sandbox", // 샌드박스 없이 실행 (일부 서버 환경에서 필요)
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu"
+    ]
+  });
+
   const page = await browser.newPage();
   try {
     // Papago URL: 입력은 자동 감지, 출력은 한국어로 설정
-    await page.goto('https://papago.naver.com/?sk=auto&tk=ko', { waitUntil: 'networkidle2' });
+    await page.goto('https://papago.naver.com/?sk=auto&tk=ko', {
+      waitUntil: 'networkidle2',
+      timeout: 60000 // 타임아웃을 60초로 증가
+    });
+
     const inputSelector = 'textarea#txtSource';
     await page.waitForSelector(inputSelector, { timeout: 5000 });
     // 원문 입력
