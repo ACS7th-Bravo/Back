@@ -42,12 +42,18 @@ import lyricsRoutes from './routes/lyrics.js';
 // 추가: 번역 전용 라우터 등록
 import translateRoutes from './routes/translate.js';
 
+// ... 기존 코드 위쪽 생략 ...
+import playlistRouter from './routes/playlist.js';
+
 
 app.use("/api/spotify", spotifyRouter);
 app.use("/api/youtube", youtubeRouter);
 app.use('/api/google', googleRoutes);
 app.use('/api/lyrics', lyricsRoutes);  // 원본 가사 엔드포인트
 app.use('/api/translate', translateRoutes);  // 번역 전용 엔드포인트
+// 기존 기타 라우터 등록 코드와 함께 추가
+app.use('/api/playlist', playlistRouter);
+
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🥰 Server is running on port ${PORT}`);

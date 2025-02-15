@@ -11,23 +11,20 @@ const youtubeApiKeys = process.env.YOUTUBE_API_KEYS.split(",");
 let currentApiKeyIndex = 0;
 let currentApiKey = youtubeApiKeys[currentApiKeyIndex];
 
-console.log(`[📢 ${new Date().toLocaleString()}] 첫 번째 YouTube API 키 할당됨: ${currentApiKey}`);
-
-
-// API 키 로테이션 함수 (2분마다 실행)
+// API 키 로테이션 함수
 function rotateApiKey() {
   currentApiKeyIndex = (currentApiKeyIndex + 1) % youtubeApiKeys.length;
   currentApiKey = youtubeApiKeys[currentApiKeyIndex];
   console.log(
-    `[🔄 ${new Date().toLocaleString()}]  ${
-      currentApiKeyIndex + 1
-    }번째 YouTube API 키 변경됨: ${currentApiKey}`
+    `[🔄 ${new Date().toLocaleString()}]  ${currentApiKeyIndex + 1}번째 YouTube API 키 변경됨: ${currentApiKey}`
   );
 }
-setInterval(rotateApiKey, 2 * 60 * 1000);
 
 // GET /api/youtube/search?trackName=...&artistName=...
 router.get("/search", async (req, res) => {
+  // 요청 시마다 API 키를 라운드로빈 방식으로 변경
+  rotateApiKey();
+
   const { trackName, artistName } = req.query;
   if (!trackName || !artistName) {
     return res
@@ -35,9 +32,13 @@ router.get("/search", async (req, res) => {
       .json({ error: "trackName and artistName parameters are required" });
   }
   const searchQueryText = `${trackName} ${artistName} official audio`;
-  const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&q=${encodeURIComponent(
+  const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&regionCode=KR&safeSearch=none&q=${encodeURIComponent(
     searchQueryText
   )}&key=${currentApiKey}&maxResults=1`;
+  
+  console.log(url);
+  
+
   try {
     const response = await fetch(url);
     if (!response.ok) {
