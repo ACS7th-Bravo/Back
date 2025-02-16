@@ -116,7 +116,7 @@ ${amazonTranslation}
       temperature: 0.9,
       top_p: 0.8,
       top_k: 250,
-      stop_sequences: ["copyright"]
+      stop_sequences: []
     })
   };
   try {
@@ -158,32 +158,17 @@ ${amazonTranslation}
 async function processTranslation(lyrics) {
   console.log("🚀 전체 번역 프로세스 시작");
 
-  // 1. 한글 비율 계산 및 디버그 로그
-  const lettersOnly = lyrics.replace(/[^a-zA-Z가-힣]/g, '');
-  const koreanMatches = lettersOnly.match(/[가-힣]/g) || [];
-  const koreanCount = koreanMatches.length;
-  const totalCount = lettersOnly.length;
-  const ratio = totalCount ? (koreanCount / totalCount) : 0;
-  console.log(`한글 비율: ${ratio.toFixed(2)} (koreanCount=${koreanCount}, totalCount=${totalCount})`);
-
-  // 임계값을 50%로 설정 (필요에 따라 조정 가능)
-  if (isMostlyKorean(lyrics, 0.5)) {
-    console.log("입력 텍스트는 대체로 한국어입니다. 번역 프로세스를 건너뜁니다.");
-    return lyrics;
-  }
-
-  const totalStartTime = performance.now();
-
-  // 2. Amazon Translate 실행 (원문 → 한국어)
+  // AWS Translate의 auto 감지에 의존하여, 원본 언어가 한국어면 번역 건너뜁니다.
   const amazonResult = await translateWithAmazon(lyrics);
-  if (!amazonResult || amazonResult.trim().length === 0 || amazonResult.trim() === "...") {
-    console.error("❌ Amazon Translate 실패: Claude에게 원문을 전달하지 않습니다.");
+  if (!amazonResult) {
+    console.error("❌ Amazon Translate 실패: 번역을 진행할 수 없습니다.");
     return null;
   }
-  // 3. Claude 3.5 Sonnet을 이용한 번역 보정 실행 (한국어 → 한국어 품질 개선)
-  let refinedResult = await refineTranslation(lyrics, amazonResult);
 
-  // fallback: Claude 거부 메시지 감지 → Amazon 결과 사용
+  // 2) Claude 보정 실행 (Amazon Translate 결과를 사용)
+  let refinedResult = await refineTranslation(amazonResult);
+
+  // fallback: Claude 거부 메시지 감지 시 Amazon Translate 결과 사용
   if (
     !refinedResult ||
     refinedResult.includes("I apologize, but I cannot assist") ||
@@ -193,7 +178,7 @@ async function processTranslation(lyrics) {
     refinedResult = amazonResult;
   }
 
-  // 추가 fallback: 줄 수가 현저히 다르면 Amazon 결과 사용 (예: refined 결과 줄 수가 Amazon의 50% 미만)
+  // 추가 fallback: 줄 수 비교 (보정된 결과가 Amazon 결과의 50% 미만이면 fallback)
   const refinedLines = refinedResult.split('\n').filter(line => line.trim() !== '');
   const amazonLines = amazonResult.split('\n').filter(line => line.trim() !== '');
   if (refinedLines.length < amazonLines.length * 0.5) {
@@ -201,8 +186,7 @@ async function processTranslation(lyrics) {
     refinedResult = amazonResult;
   }
 
-  const totalEndTime = performance.now();
-  console.log(`🚀 전체 번역 프로세스 완료 (총 소요 시간: ${(totalEndTime - totalStartTime).toFixed(2)}ms)`);
+  console.log("🚀 전체 번역 프로세스 완료");
   return refinedResult;
 }
 
@@ -219,31 +203,20 @@ router.post('/', async (req, res) => { // 번역 요청 처리
   res.flushHeaders();
 
   try {
-    // 1. 공백, 구두점, 숫자, 기호 제거 후 한글 비율 계산
-    const lettersOnly = lyrics.replace(/[^a-zA-Z가-힣]/g, '');
-    const koreanMatches = lettersOnly.match(/[가-힣]/g) || [];
-    const koreanCount = koreanMatches.length;
-    const totalCount = lettersOnly.length;
-    const ratio = totalCount ? (koreanCount / totalCount) : 0;
-    console.log(`한글 비율: ${ratio.toFixed(2)} (koreanCount=${koreanCount}, totalCount=${totalCount})`);
-
-    if (ratio >= 0.5) {
-      console.log("대부분 한국어이므로 번역 건너뜀");
+    // AWS Translate가 이미 원본 언어를 감지하여 한국어면 번역을 건너뜁니다.
+    const amazonResult = await translateWithAmazon(lyrics);
+    // 만약 번역이 필요 없다면, 원문을 그대로 반환
+    if (amazonResult === lyrics) {
+      console.log("입력 텍스트가 이미 한국어이므로, 번역 없이 원문 반환");
       res.write(`data: ${JSON.stringify({ stage: 'refined', translation: lyrics })}\n\n`);
       res.end();
       return;
     }
 
-    // 2. Amazon Translate 실행 및 결과 전송
-    const amazonResult = await translateWithAmazon(lyrics);
-    if (!amazonResult) {
-      res.write(`data: ${JSON.stringify({ stage: 'error', message: 'Amazon Translate 실패' })}\n\n`);
-      res.end();
-      return;
-    }
+    // Amazon Translate 결과 SSE 전송
     res.write(`data: ${JSON.stringify({ stage: 'amazon', translation: amazonResult })}\n\n`);
 
-    // Amazon Translate 결과가 클라이언트에 표시되도록 2초 대기
+    // 2초 대기
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     // "번역 보정 진행중..." 메시지 전송
@@ -252,20 +225,22 @@ router.post('/', async (req, res) => { // 번역 요청 처리
     // 3. AI 번역(최종 번역) 진행 및 결과 전송
     let refinedResult = await refineTranslation(lyrics, amazonResult);
 
-    // Claude가 거부하면 fallback
+    // fallback: Claude 거부 메시지 감지 시 Amazon Translate 결과 사용
     if (
       !refinedResult ||
       refinedResult.includes("I apologize, but I cannot assist") ||
       refinedResult.includes("cannot help with copyrighted lyrics")
     ) {
-      console.log("⚠️ Claude 거부(사과) 메시지 감지 → Amazon 번역만 사용");
+      console.log("⚠️ Claude 거부(사과) 메시지 감지 → Amazon Translate 결과만 사용");
       refinedResult = amazonResult;
     }
 
-    if (!refinedResult) {
-      res.write(`data: ${JSON.stringify({ stage: 'error', message: 'AI 번역 실패' })}\n\n`);
-      res.end();
-      return;
+    // fallback: 줄 수 비교
+    const refinedLines = refinedResult.split('\n').filter(line => line.trim() !== '');
+    const amazonLines = amazonResult.split('\n').filter(line => line.trim() !== '');
+    if (refinedLines.length < amazonLines.length * 0.5) {
+      console.log("⚠️ 보정된 결과의 줄 수가 현저히 부족합니다. Amazon Translate 결과로 fallback합니다.");
+      refinedResult = amazonResult;
     }
     res.write(`data: ${JSON.stringify({ stage: 'refined', translation: refinedResult })}\n\n`);
     res.end();
