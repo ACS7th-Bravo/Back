@@ -49,7 +49,7 @@ async function translateWithAmazon(originalLyrics) {
     });
     const response = await translateClient.send(command);
 
-    // 만약 감지된 원본 언어가 한국어라면 번역을 건너뜁니다.
+    // 만약 감지된 원본 언어가 한국어라면 번역 생략
     if (response.SourceLanguageCode && response.SourceLanguageCode === "ko") {
       console.log("감지된 원본 언어가 한국어입니다. 번역을 건너뜁니다.");
       return originalLyrics;
