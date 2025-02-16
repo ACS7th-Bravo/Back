@@ -33,26 +33,6 @@ function containsKorean(text) {
 }
 
 /**
- * 텍스트 내 한글 비율을 계산하여, threshold 이상이면 대체로 한국어로 간주하는 함수.
- */
-function isMostlyKorean(text, threshold = 0.5) {
-  // 공백, 숫자, 구두점, 기타 기호 등은 제거하되, 한글과 알파벳은 유지
-  const lettersOnly = text.replace(/[^a-zA-Z가-힣]/g, '');
-  const koreanMatches = lettersOnly.match(/[가-힣]/g);
-  const koreanCount = koreanMatches ? koreanMatches.length : 0;
-  const totalCount = lettersOnly.length;
-
-  if (totalCount === 0) {
-    // 텍스트가 전부 제거되었다면 false 반환
-    return false;
-  }
-  const ratio = koreanCount / totalCount;
-  console.log(`(디버그) lettersOnly='${lettersOnly}', totalCount=${totalCount}, koreanCount=${koreanCount}, ratio=${ratio}`);
-  return ratio >= threshold;
-}
-
-
-/**
  * AWS Translate를 이용해 가사를 한국어로 번역합니다.
  * (Papago 대신 Amazon Translate 사용)
  * @param {string} originalLyrics - 원문 가사
@@ -68,6 +48,13 @@ async function translateWithAmazon(originalLyrics) {
       Text: originalLyrics,
     });
     const response = await translateClient.send(command);
+
+    // 만약 감지된 원본 언어가 한국어라면 번역을 건너뜁니다.
+    if (response.SourceLanguageCode && response.SourceLanguageCode === "ko") {
+      console.log("감지된 원본 언어가 한국어입니다. 번역을 건너뜁니다.");
+      return originalLyrics;
+    }
+
     const translatedText = response.TranslatedText;
     // 번역 결과에 한글이 포함되어 있지 않으면 무시
     if (!translatedText || !containsKorean(translatedText)) {
@@ -91,9 +78,8 @@ async function translateWithAmazon(originalLyrics) {
 }
 
 /**
- * :흰색_확인_표시: Claude 3.5 Sonnet을 이용해 번역 품질 개선 (한국어 → 한국어 품질 개선)
- * - 시스템 프롬프트에 emoji와 추가 형식을 적용하여 최종 결과가 오직 보정된 한국어 가사만 포함되도록 합니다.
- * (여기서는 Papago 번역 결과 대신 Amazon Translate 결과를 사용합니다.)
+ * Claude 3.5 Sonnet을 이용해 번역 품질 개선 (한국어 → 한국어 품질 개선)
+ * (여기서는 Amazon Translate 결과를 기반으로 보정)
  */
 async function refineTranslation(amazonTranslation) {
   console.log("🔄 Claude 3.5 Sonnet에서 번역 품질 개선 진행 중...");
@@ -110,7 +96,7 @@ Note: Do not reproduce or include any substantial portions of copyrighted origin
 - Do NOT summarize, combine, or omit any lines.
 - **Process each line individually:** The output must have exactly one refined line for each input line.
 - Do not merge two or more lines.
-- The final output should consist solely of the improved Korean text.
+- The final output must contain ONLY the polished Korean text, with no introductory phrases, headers, or extra commentary.
 - Do NOT include any headers, labels, or additional commentary in the output.
 : **Input:**
 [Initial Korean Translation]
@@ -130,7 +116,7 @@ ${amazonTranslation}
       temperature: 0.9,
       top_p: 0.8,
       top_k: 250,
-      stop_sequences: ["copyright", "저작권"]
+      stop_sequences: ["copyright"]
     })
   };
   try {
@@ -148,9 +134,12 @@ ${amazonTranslation}
     console.log(`🔢 총 토큰 수 (입력 + 출력): ${inputTokens.length + outputTokens.length}`);
     const endTime = performance.now();
     console.log(`📝 최종 번역 결과 (소요 시간: ${(endTime - startTime).toFixed(2)}ms)`);
-    // 만약 refinedLyrics가 대괄호로 시작하면, 해당 부분을 제거합니다.
-    // 예: "[Refined Korean Translation]"과 같이 시작하는 경우
+
+    // 후처리: 대괄호로 시작하는 헤더 제거
     refinedLyrics = refinedLyrics.replace(/^\[.*?\]\s*/, '').trimStart();
+    // 후처리: "Here is" 로 시작하는 문장 제거 (대소문자 무시)
+    refinedLyrics = refinedLyrics.replace(/^Here is.*\n?/i, '').trim();
+
     console.log(refinedLyrics);
     return refinedLyrics;
   } catch (error) {
@@ -162,9 +151,9 @@ ${amazonTranslation}
 /**
  * 전체 번역 프로세스 실행 함수
  * 순서:
- * 1) 한글 비율 검사 → (대부분 한국어면) 원문 반환
- * 2) Amazon Translate
- * 3) Claude 보정 시도 → Claude가 거부(사과)하면, null이 아닌 거부 메시지일 수도 있음
+ * 1) 한글 비율 검사 → (대체로 한국어면) 원문 반환
+ * 2) Amazon Translate 실행
+ * 3) Claude 보정 시도 → 거부 메시지나 파싱 불일치시 fallback 처리
  */
 async function processTranslation(lyrics) {
   console.log("🚀 전체 번역 프로세스 시작");
@@ -194,15 +183,21 @@ async function processTranslation(lyrics) {
   // 3. Claude 3.5 Sonnet을 이용한 번역 보정 실행 (한국어 → 한국어 품질 개선)
   let refinedResult = await refineTranslation(lyrics, amazonResult);
 
-  // ★ 만약 Claude가 저작권 관련 거부 메시지를 반환하면,
-  //   refinedResult 안에 "I apologize, but I cannot assist" 등 사과 문구가 들어갈 수 있음.
-  //   이 경우, refinedResult 대신 amazonResult로 대체
+  // fallback: Claude 거부 메시지 감지 → Amazon 결과 사용
   if (
     !refinedResult ||
     refinedResult.includes("I apologize, but I cannot assist") ||
     refinedResult.includes("cannot help with copyrighted lyrics")
   ) {
-    console.log("⚠️ Claude 거부(사과) 메시지 감지 → Amazon 번역만 사용");
+    console.log("⚠️ Claude 거부(사과) 메시지 감지 → Amazon Translate 결과만 사용");
+    refinedResult = amazonResult;
+  }
+
+  // 추가 fallback: 줄 수가 현저히 다르면 Amazon 결과 사용 (예: refined 결과 줄 수가 Amazon의 50% 미만)
+  const refinedLines = refinedResult.split('\n').filter(line => line.trim() !== '');
+  const amazonLines = amazonResult.split('\n').filter(line => line.trim() !== '');
+  if (refinedLines.length < amazonLines.length * 0.5) {
+    console.log("⚠️ 보정된 결과의 줄 수가 현저히 부족합니다. Amazon Translate 결과로 fallback합니다.");
     refinedResult = amazonResult;
   }
 
