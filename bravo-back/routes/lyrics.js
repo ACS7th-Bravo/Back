@@ -36,23 +36,23 @@
 //   try {
 //     console.log(`📡 [백엔드] LRCLIB API 요청: ${url}?${queryParams}`);
 //     const response = await fetch(`${url}?${queryParams}`);
-    
+
 //     if (response.status === 404) {
 //       console.warn("⚠️ [백엔드] LRCLIB API 404 응답: 트랙을 찾지 못했습니다.");
 //       return null;
 //     }
-    
+
 //     if (!response.ok) {
 //       console.error(`❌ [백엔드] LRCLIB API 오류 (HTTP ${response.status})`);
 //       return null;
 //     }
-    
+
 //     const data = await response.json();
 //     if (data.code === 404) {
 //       console.warn("⚠️ [백엔드] LRCLIB: 트랙을 찾지 못했습니다. (data.code === 404)");
 //       return null;
 //     }
-    
+
 //     if (data.syncedLyrics) {
 //       return data.syncedLyrics;
 //     } else if (data.plainLyrics) {
@@ -85,27 +85,27 @@
 //   try {
 //     console.log(`📡 [백엔드] Musixmatch API 요청: ${url}?${querystring}`);
 //     const response = await fetch(`${url}?${querystring}`, { headers });
-    
+
 //     if (response.status === 404) {
 //       console.warn("⚠️ [백엔드] Musixmatch API 404 응답: 가사를 찾지 못했습니다.");
 //       return null;
 //     }
-    
+
 //     if (!response.ok) {
 //       console.error(`❌ [백엔드] Musixmatch API 오류 (HTTP ${response.status})`);
 //       return null;
 //     }
-    
+
 //     const data = await response.json();
 //     if (!data || data.error) {
 //       console.warn("⚠️ [백엔드] Musixmatch에서 가사 데이터를 찾지 못했습니다.");
 //       return null;
 //     }
-    
+
 //     if (Array.isArray(data)) {
 //       return data.map(line => line.text).join('\n');
 //     }
-    
+
 //     const lyrics = data.message?.body?.lyrics?.lyrics_body;
 //     if (lyrics) {
 //       return lyrics;
@@ -201,8 +201,12 @@ const MUSIXMATCH_API_HOST = process.env.MUSIXMATCH_API_HOST || "musixmatch-lyric
  * 문자열 정리 함수 (필요시 확장 가능)
  */
 function cleanQueryString(str) {
-  return str.replace(/’/g, "'").trim();
+  return str
+    .replace(/’/g, "'")          // 오른쪽 작은 따옴표를 일반 따옴표로 변환
+    .replace(/\s*\(.*$/, "")      // 공백과 '(' 이후의 모든 문자 제거
+    .trim();                     // 앞뒤 공백 제거
 }
+
 
 /**
  * LRCLIB의 /api/get 엔드포인트를 단일 시도로 호출합니다.
@@ -223,23 +227,23 @@ async function fetchLyricsLrcLib(song, artist, album = null, duration = null, re
   try {
     console.log(`📡 [백엔드] LRCLIB API 요청: ${url}?${queryParams}`);
     const response = await fetch(`${url}?${queryParams}`);
-    
+
     if (response.status === 404) {
       console.warn("⚠️ [백엔드] LRCLIB API 404 응답: 트랙을 찾지 못했습니다.");
       return null;
     }
-    
+
     if (!response.ok) {
       console.error(`❌ [백엔드] LRCLIB API 오류 (HTTP ${response.status})`);
       return null;
     }
-    
+
     const data = await response.json();
     if (data.code === 404) {
       console.warn("⚠️ [백엔드] LRCLIB: 트랙을 찾지 못했습니다. (data.code === 404)");
       return null;
     }
-    
+
     if (data.syncedLyrics) {
       return data.syncedLyrics;
     } else if (data.plainLyrics) {
@@ -274,17 +278,17 @@ async function fetchLyricsMusixmatch(song, artist, retries = 1) {
   try {
     console.log(`📡 [백엔드] Musixmatch API 요청: ${url}?${querystring}`);
     const response = await fetch(`${url}?${querystring}`, { headers });
-    
+
     if (response.status === 404) {
       console.warn("⚠️ [백엔드] Musixmatch API 404 응답: 가사를 찾지 못했습니다.");
       return null;
     }
-    
+
     if (!response.ok) {
       console.error(`❌ [백엔드] Musixmatch API 오류 (HTTP ${response.status})`);
       return null;
     }
-    
+
     const data = await response.json();
     // 만약 API 응답이 리스트 형태라면 타임스탬프와 텍스트를 포맷합니다.
     if (Array.isArray(data) && data.length > 0) {
@@ -299,7 +303,7 @@ async function fetchLyricsMusixmatch(song, artist, retries = 1) {
       }).join('\n');
       return formatted;
     }
-    
+
     // 리스트 형태가 아니라면 기존 방식으로 처리
     const lyrics = data.message?.body?.lyrics?.lyrics_body;
     if (lyrics) {
@@ -315,9 +319,12 @@ router.get('/', async (req, res) => {
   console.log("📢 [백엔드] /api/lyrics 요청 받음");
   console.log("👉 받은 쿼리 파라미터:", req.query);
 
-  const { song, artist, album, duration } = req.query;
-  if (!song || !artist) {
-    console.error("❌ [백엔드] 요청 실패: song 또는 artist 누락");
+  const { song, artist, album, duration, englishTrackName, englishArtistName } = req.query;
+  const trackNameToSearch = englishTrackName || song;
+  const artistNameToSearch = englishArtistName || artist;
+
+  if (!trackNameToSearch || !artistNameToSearch) {
+    console.error("❌ [백엔드] 요청 실패: 곡명(song) 또는 아티스트명(artist) 누락");
     return res.status(400).json({ error: "곡명(song)과 아티스트명(artist)을 입력하세요." });
   }
 
@@ -326,18 +333,19 @@ router.get('/', async (req, res) => {
   // LRCLIB API 2회 시도
   for (let i = 0; i < 2; i++) {
     console.log(`📡 [백엔드] LRCLIB API 시도 ${i + 1}번째`);
-    lyrics = await fetchLyricsLrcLib(song, artist, album, duration, 1);
+    lyrics = await fetchLyricsLrcLib(trackNameToSearch, artistNameToSearch, album, duration, 1);
     if (lyrics) break;
     // 시도 간 1초 대기
     await new Promise(res => setTimeout(res, 1000));
   }
+
 
   // LRCLIB에서 찾지 못하면 Musixmatch API 2회 시도
   if (!lyrics) {
     console.warn("⚠️ [백엔드] LRCLIB에서 가사를 찾지 못했습니다. Musixmatch API를 호출합니다.");
     for (let i = 0; i < 2; i++) {
       console.log(`📡 [백엔드] Musixmatch API 시도 ${i + 1}번째`);
-      lyrics = await fetchLyricsMusixmatch(song, artist, 1);
+      lyrics = await fetchLyricsMusixmatch(trackNameToSearch, artistNameToSearch, 1);
       if (lyrics) break;
       await new Promise(res => setTimeout(res, 1000));
     }
@@ -379,13 +387,13 @@ router.get('/', async (req, res) => {
   // ─────────────────────────────────────────────
 
   console.log("📝 [백엔드] 원본 가사:", lyrics);
-  return res.json({ 
-    song, 
-    artist, 
-    album, 
-    duration, 
-    lyrics: plainLyrics, 
-    parsedLyrics: result.length > 0 ? result : null 
+  return res.json({
+    song,
+    artist,
+    album,
+    duration,
+    lyrics: plainLyrics,
+    parsedLyrics: result.length > 0 ? result : null
   });
 });
 

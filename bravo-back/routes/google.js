@@ -75,10 +75,18 @@ router.get('/google-callback', async (req, res) => {
     // MongoDB에서 사용자 검색 및 생성/갱신
     let user = await User.findOne({ email });
     let jwtToken;
+    let jwtPayload;
 
     if (!user) {
       // 새로운 사용자라면 새로 생성 후 JWT 발급
+      jwtPayload = {
+        id: new mongoose.Types.ObjectId(), // 임시 id 생성 (나중에 user._id로 대체)
+        email,
+        name: payload.name,
+        picture: payload.picture,
+      };
       jwtToken = jwt.sign({ email, name: payload.name, picture: payload.picture }, JWT_SECRET, { expiresIn: "7d" });
+
       user = new User({ email, name: payload.name, picture: payload.picture, jwtToken });
       await user.save();
       console.log("✅ 새 사용자 저장됨:", user);
@@ -93,6 +101,12 @@ router.get('/google-callback', async (req, res) => {
         }
       } catch (err) {
         // 기존 토큰이 만료되었거나 유효하지 않다면 새 토큰 발급
+        jwtPayload = {
+          id: user._id,
+          email,
+          name: payload.name,
+          picture: payload.picture,
+        };
         jwtToken = jwt.sign({ email, name: payload.name, picture: payload.picture }, JWT_SECRET, { expiresIn: "7d" });
         user.jwtToken = jwtToken;
         await user.save();
