@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken';
 import querystring from 'querystring';
 import { OAuth2Client } from 'google-auth-library';
 import dotenv from 'dotenv';
+import mongoose from 'mongoose'; // 추가: mongoose 임포트
 import { User } from '../models/User.js'; // MongoDB User 모델 임포트
 
 dotenv.config();
@@ -75,25 +76,45 @@ router.get('/google-callback', async (req, res) => {
     // MongoDB에서 사용자 검색 및 생성/갱신
     let user = await User.findOne({ email });
     let jwtToken;
+    let jwtPayload; // JWT에 포함할 데이터 2025.02.14 플레이리스트 추가가
 
     if (!user) {
-      // 새로운 사용자라면 새로 생성 후 JWT 발급
-      jwtToken = jwt.sign({ email, name: payload.name, picture: payload.picture }, JWT_SECRET, { expiresIn: "7d" });
+      // 새로운 사용자라면 새로 생성 후 JWT 발급 (MongoDB가 자동으로 _id를 생성합니다) 2025.02.14 플레이리스트 추가가
+      jwtPayload = {
+        id: new mongoose.Types.ObjectId(), // 임시 id 생성 (나중에 user._id로 대체)
+        email,
+        name: payload.name,
+        picture: payload.picture,
+      };
+      jwtToken = jwt.sign(jwtPayload, JWT_SECRET, { expiresIn: "7d" });
+      
       user = new User({ email, name: payload.name, picture: payload.picture, jwtToken });
       await user.save();
       console.log("✅ 새 사용자 저장됨:", user);
+      
+      // 실제 저장 후에는 user._id를 사용하여 JWT를 재발급합니다. 2025.02.14 플레이리스트 추가가
+      jwtPayload.id = user._id;
+      jwtToken = jwt.sign(jwtPayload, JWT_SECRET, { expiresIn: "7d" });
+      user.jwtToken = jwtToken;
+      await user.save();
     } else {
       // 기존 사용자인 경우, 기존 토큰이 있다면 재사용, 없거나 만료된 경우 새 토큰 발급
       try {
         if (user.jwtToken) {
-          // 기존 토큰의 유효성을 검증합니다.
+          // 기존 토큰 유효성 검증
           jwt.verify(user.jwtToken, JWT_SECRET);
           jwtToken = user.jwtToken;
           console.log("✅ 기존 JWT 재사용:", jwtToken);
         }
       } catch (err) {
-        // 기존 토큰이 만료되었거나 유효하지 않다면 새 토큰 발급
-        jwtToken = jwt.sign({ email, name: payload.name, picture: payload.picture }, JWT_SECRET, { expiresIn: "7d" });
+        // 기존 토큰이 만료되었거나 유효하지 않다면 새 토큰 발급 2025.02.14 플레이리스트 추가가
+        jwtPayload = {
+          id: user._id,
+          email,
+          name: payload.name,
+          picture: payload.picture,
+        };
+        jwtToken = jwt.sign(jwtPayload, JWT_SECRET, { expiresIn: "7d" });
         user.jwtToken = jwtToken;
         await user.save();
         console.log("✅ 새 JWT 발급 및 업데이트:", jwtToken);
