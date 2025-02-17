@@ -1,6 +1,6 @@
 // routes/playlist.js
 import express from 'express';
-import { Playlist } from '../models/playlist.js';
+import { Playlist } from '../models/Playlist.js';
 import { User } from '../models/User.js';
 
 const router = express.Router();

@@ -93,7 +93,7 @@ This request is for academic and personal study purposes only.
 Please polish the following Korean text for better fluency and natural tone while preserving its intended meaning, rhythm, and style.
 Note: Do not reproduce or include any substantial portions of copyrighted original text.
 : **Important Instructions:**
-- Do NOT summarize, combine, or omit any lines.
+- Do NOT summarize, combine, or omit any lines, including the first line.
 - **Process each line individually:** The output must have exactly one refined line for each input line.
 - Do not merge two or more lines.
 - The final output must contain ONLY the polished Korean text, with no introductory phrases, headers, or extra commentary.

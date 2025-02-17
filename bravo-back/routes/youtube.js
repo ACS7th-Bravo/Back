@@ -20,6 +20,30 @@ function rotateApiKey() {
   );
 }
 
+/**
+ * 곡명 정제 함수
+ * - 오른쪽 작은 따옴표를 일반 따옴표로 변환
+ * - 괄호 및 그 뒤의 내용 제거
+ * - 앞뒤 공백 제거
+ */
+function cleanTrackName(str) {
+  return str.replace(/’/g, "'")
+    .replace(/\s*\(.*$/, "")
+    .trim();
+}
+
+/**
+ * 아티스트명 정제 함수
+ * - 오른쪽 작은 따옴표를 일반 따옴표로 변환
+ * - 쉼표 기준으로 분리 후 첫 번째 항목 반환
+ * - 앞뒤 공백 제거
+ */
+function cleanArtistName(str) {
+  const cleaned = str.replace(/’/g, "'").trim();
+  const parts = cleaned.split(",");
+  return parts[0].trim();
+}
+
 // GET /api/youtube/search?trackName=...&artistName=...
 router.get("/search", async (req, res) => {
   // 요청 시마다 API 키를 라운드로빈 방식으로 변경
@@ -31,7 +55,14 @@ router.get("/search", async (req, res) => {
       .status(400)
       .json({ error: "trackName and artistName parameters are required" });
   }
-  const searchQueryText = `${trackName} ${artistName} official audio`;
+
+  // 정제된 곡명과 아티스트명을 사용하여 검색어 생성
+  const cleanedTrackName = cleanTrackName(trackName);
+  const cleanedArtistName = cleanArtistName(artistName);
+  const searchQueryText = `${cleanedTrackName} ${cleanedArtistName} official audio`;
+
+  console.log("🔍 YouTube 검색 키워드:", searchQueryText);
+
   const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&regionCode=KR&safeSearch=none&q=${encodeURIComponent(
     searchQueryText
   )}&key=${currentApiKey}&maxResults=1`;
