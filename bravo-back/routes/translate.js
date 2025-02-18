@@ -1,9 +1,14 @@
+// bravo-back/routes/translate.js
+
+
 import express from 'express';
 import { TranslateClient, TranslateTextCommand } from "@aws-sdk/client-translate";
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 import { performance } from "perf_hooks";
 import dotenv from "dotenv";
 import { encode } from "gpt-3-encoder"; // 토큰 수 계산 라이브러리
+import { Track } from '../models/Track.js';
+
 
 dotenv.config();
 
@@ -93,7 +98,7 @@ This request is for academic and personal study purposes only.
 Please polish the following Korean text for better fluency and natural tone while preserving its intended meaning, rhythm, and style.
 Note: Do not reproduce or include any substantial portions of copyrighted original text.
 : **Important Instructions:**
-- Do NOT summarize, combine, or omit any lines, including the first line.
+- Do NOT summarize, combine, or omit any lines.
 - **Process each line individually:** The output must have exactly one refined line for each input line.
 - Do not merge two or more lines.
 - The final output must contain ONLY the polished Korean text, with no introductory phrases, headers, or extra commentary.
@@ -140,7 +145,7 @@ ${amazonTranslation}
     // 후처리: "Here is" 로 시작하는 문장 제거 (대소문자 무시)
     refinedLyrics = refinedLyrics.replace(/^Here is.*\n?/i, '').trim();
 
-    console.log(refinedLyrics);
+    console.log("✅ 최종 번역 결과:", refinedLyrics);
     return refinedLyrics;
   } catch (error) {
     console.error("❌ Claude 3.5 번역 보정 요청 실패:", error);
@@ -190,8 +195,28 @@ async function processTranslation(lyrics) {
   return refinedResult;
 }
 
-router.post('/', async (req, res) => { // 번역 요청 처리
-  const { lyrics } = req.body;
+router.post('/', async (req, res) => {
+  let { lyrics, track_id } = req.body;
+
+  // track_id가 있다면 DB에서 해당 트랙 정보를 조회합니다.
+  if (track_id) {
+    try {
+      const trackDoc = await Track.findOne({ track_id });
+      if (trackDoc && trackDoc.lyrics_translation) {
+        console.log("✅ DB에 저장된 번역 가사가 있습니다. 바로 반환합니다.");
+        res.write(`data: ${JSON.stringify({ stage: 'refined', translation: trackDoc.lyrics_translation })}\n\n`);
+        return res.end();
+      }
+      // DB에 번역된 가사가 없다면 plain_lyrics를 번역에 사용합니다.
+      if (trackDoc && trackDoc.plain_lyrics) {
+        lyrics = trackDoc.plain_lyrics;
+        console.log("✅ DB에 번역된 가사가 없으므로, plain_lyrics를 번역에 사용합니다.");
+      }
+    } catch (err) {
+      console.error("❌ DB 조회 오류:", err);
+    }
+  }
+
   if (!lyrics) {
     res.status(400).json({ error: "원문 가사를 제공하세요." });
     return;
@@ -208,6 +233,15 @@ router.post('/', async (req, res) => { // 번역 요청 처리
     // 만약 번역이 필요 없다면, 원문을 그대로 반환
     if (amazonResult === lyrics) {
       console.log("입력 텍스트가 이미 한국어이므로, 번역 없이 원문 반환");
+      // ★★ DB 업데이트: track_id가 있다면 lyrics_translation도 원문 그대로 저장
+      if (track_id) {
+        await Track.findOneAndUpdate(
+          { track_id },
+          { lyrics_translation: lyrics },
+          { upsert: true }
+        );
+      }
+
       res.write(`data: ${JSON.stringify({ stage: 'refined', translation: lyrics })}\n\n`);
       res.end();
       return;
@@ -241,6 +275,20 @@ router.post('/', async (req, res) => { // 번역 요청 처리
     if (refinedLines.length < amazonLines.length * 0.5) {
       console.log("⚠️ 보정된 결과의 줄 수가 현저히 부족합니다. Amazon Translate 결과로 fallback합니다.");
       refinedResult = amazonResult;
+    }
+
+    // ★★ DB 업데이트: track_id가 있다면 lyrics_translation 필드 업데이트
+    if (track_id) {
+      try {
+        await Track.findOneAndUpdate(
+          { track_id },
+          { lyrics_translation: refinedResult },
+          { upsert: true }
+        );
+        console.log("DB에 번역 가사 저장/업데이트 완료.");
+      } catch (err) {
+        console.error("DB 업데이트 오류:", err);
+      }
     }
     res.write(`data: ${JSON.stringify({ stage: 'refined', translation: refinedResult })}\n\n`);
     res.end();

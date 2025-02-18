@@ -1,5 +1,6 @@
-import mongoose from 'mongoose';
+//bravo-back/models/Track.js
 
+import mongoose from 'mongoose';
 const trackSchema = new mongoose.Schema({
     track_id: { type: String, required: true, unique: true },
     track_name: { type: String, required: true },
@@ -12,5 +13,4 @@ const trackSchema = new mongoose.Schema({
     lyrics_translation: { type: String }, // 번역된 가사 (선택사항)
     streaming_id: { type: String, required: true } // YouTube videoId 등
 });
-
 export const Track = mongoose.model('Track', trackSchema);
