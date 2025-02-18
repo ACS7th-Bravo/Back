@@ -142,20 +142,22 @@ router.get('/', async (req, res) => {
   if (track_id) {
     try {
       const trackDoc = await Track.findOne({ track_id });
-      if (trackDoc && trackDoc.plain_lyrics) {
-        console.log("DB에 저장된 가사가 있습니다. 바로 반환합니다.");
+      if (trackDoc && trackDoc.plain_lyrics && trackDoc.parsed_lyrics) {
+        console.log("✅ DB에서 가사를 불러왔습니다.");
         return res.json({
           song,
           artist,
           album,
           duration,
-          lyrics: trackDoc.plain_lyrics,
-          parsedLyrics: trackDoc.parsed_lyrics || null
+          lyrics: trackDoc.parsed_lyrics, // parsed_lyrics 우선 사용
+          parsedLyrics: trackDoc.parsed_lyrics
         });
       }
     } catch (err) {
       console.error("DB 조회 오류:", err);
     }
+    // DB에 해당 데이터가 없으면 로그 출력
+    console.log("DB에 저장된 가사가 없습니다. 외부 API로 가사를 불러옵니다.");
   }
 
 
@@ -227,20 +229,20 @@ router.get('/', async (req, res) => {
         { plain_lyrics: plainLyrics, parsed_lyrics: result.length > 0 ? result : null },
         { upsert: true }
       );
-      console.log("DB에 가사 저장/업데이트 완료.");
+      console.log("✅ DB에 가사 저장/업데이트 완료.");
     } catch (err) {
-      console.error("DB 업데이트 오류:", err);
+      console.error("❌ DB 업데이트 오류:", err);
     }
   }
 
-  
-  console.log("📝 [백엔드] 원본 가사:", lyrics);
+
+  console.log("📝 [백엔드] 외부에서 불러온 원본 가사:", lyrics);
   return res.json({
     song,
     artist,
     album,
     duration,
-    lyrics: plainLyrics,
+    lyrics: result.length > 0 ? plainLyrics : lyrics,
     parsedLyrics: result.length > 0 ? result : null
   });
 });

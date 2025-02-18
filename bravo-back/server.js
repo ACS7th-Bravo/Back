@@ -27,7 +27,7 @@ const app = express();
 
 app.use(cors({
   origin: FRONTEND_URL,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'],
   credentials: true,
 }));
@@ -56,6 +56,21 @@ app.use('/api/lyrics', lyricsRoutes);  // 원본 가사 엔드포인트
 app.use('/api/translate', translateRoutes);  // 번역 전용 엔드포인트
 // 기존 기타 라우터 등록 코드와 함께 추가
 app.use('/api/playlist', playlistRouter);
+
+
+// const flag = process.argv[2];
+
+// if (flag === 'track') {
+//   app.use('/api/track', trackRoutes)
+//   app.use("/api/spotify", spotifyRouter);
+//   app.use("/api/youtube", youtubeRouter);
+//   app.use('/api/google', googleRoutes);
+// } else {
+//   app.use('/api/lyrics', lyricsRoutes);  // 원본 가사 엔드포인트
+//   app.use('/api/translate', translateRoutes);  // 번역 전용 엔드포인트
+//   // 기존 기타 라우터 등록 코드와 함께 추가
+//   app.use('/api/playlist', playlistRouter);
+// }
 
 
 app.listen(PORT, '0.0.0.0', () => {

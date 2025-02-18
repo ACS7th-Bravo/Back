@@ -1,7 +1,38 @@
 // bravo-back/models/Playlist.js
 import mongoose from 'mongoose';
-
-// [변경] 기존 playlist.js 스키마 대신 아래와 같이 변경: user_id 대신 email을 사용하고, tracks는 Track 모델의 ObjectId 참조
+// Track의 일부 필드만 포함하는 서브 스키마 정의
+const trackSubSchema = new mongoose.Schema({
+  track_id: {
+    type: String,
+    required: true,
+    description: "트랙의 고유 아이디 - 필수"
+  },
+  track_name: {
+    type: String,
+    required: true,
+    description: "트랙 이름 - 필수"
+  },
+  artist_id: {
+    type: String,
+    required: true,
+    description: "아티스트 아이디 - 필수"
+  },
+  artist_name: {
+    type: String,
+    required: true,
+    description: "아티스트 이름 - 필수"
+  },
+  album_id: {
+    type: String,
+    required: true,
+    description: "앨범 아이디 - 필수"
+  },
+  album_image: {
+    type: String,
+    required: true,
+    description: "앨범 이미지 URL - 필수"
+  }
+}, { _id: false }); // 별도의 _id 생성 방지
 const playlistSchema = new mongoose.Schema({
   email: {
     type: String,
@@ -14,11 +45,10 @@ const playlistSchema = new mongoose.Schema({
     required: true,
     description: "플레이리스트 이름 - 필수"
   },
+  // tracks 배열 안에 Track.js의 일부 필드만 포함하는 서브 도큐먼트
   tracks: {
-    type: [mongoose.Schema.Types.ObjectId],
-    ref: 'Track',
-    description: "Track.js 참조"
+    type: [trackSubSchema],
+    description: "Track.js의 일부 필드 (track_id, track_name, artist_id, artist_name, album_id, album_image) 참조"
   }
 }, { timestamps: true });
-
 export const Playlist = mongoose.model('Playlist', playlistSchema);
