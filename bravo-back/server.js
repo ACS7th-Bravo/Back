@@ -25,12 +25,13 @@ mongoose.connect(MONGO_URI, {
 
 const app = express();
 
-app.use(cors({
-  origin: FRONTEND_URL,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'],
-  credentials: true,
-}));
+// app.use(cors({
+//   origin: FRONTEND_URL,
+//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+//   allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'],
+//   credentials: true,
+// }));
+app.use(cors());
 app.use(express.json());
 import spotifyRouter from './routes/spotify.js';
 import youtubeRouter from './routes/youtube.js';

@@ -12,30 +12,29 @@ const LRCLIB_API_BASE = process.env.LRCLIB_API_BASE || "http://localhost:3001";
 const MUSIXMATCH_API_KEY = process.env.MUSIXMATCH_API_KEY;
 const MUSIXMATCH_API_HOST = process.env.MUSIXMATCH_API_HOST || "musixmatch-lyrics-songs.p.rapidapi.com";
 
-/**
- * 문자열 정리 함수 (필요시 확장 가능)
- */
-function cleanQueryString(str) {
-  return str
-    .replace(/’/g, "'")          // 오른쪽 작은 따옴표를 일반 따옴표로 변환
-    .replace(/\s*\(.*$/, "")      // 공백과 '(' 이후의 모든 문자 제거
-    .trim();                     // 앞뒤 공백 제거
+// 곡명 정제 함수: 오른쪽 작은 따옴표 → 일반 따옴표, 괄호 및 그 뒤 내용 제거, 앞뒤 공백 제거
+function cleanTrackName(str) {
+  return str.replace(/’/g, "'")
+    .replace(/\s*\(.*$/, "")
+    .trim();
 }
 
+// 아티스트명 정제 함수: 오른쪽 작은 따옴표 → 일반 따옴표, 쉼표 기준으로 분리 후 첫 번째 항목 반환, 앞뒤 공백 제거
+function cleanArtistName(str) {
+  const cleaned = str.replace(/’/g, "'").trim();
+  const parts = cleaned.split(",");
+  return parts[0].trim();
+}
 
-/**
- * LRCLIB의 /api/get 엔드포인트를 단일 시도로 호출합니다.
- * 404나 '찾을 수 없음' 응답이면 바로 null 반환합니다.
- */
 async function fetchLyricsLrcLib(song, artist, album = null, duration = null, retries = 1) {
-  const cleanSong = cleanQueryString(song);
-  const cleanArtist = cleanQueryString(artist);
+  const cleanSong = cleanTrackName(song);
+  const cleanArtist = cleanArtistName(artist);
 
   const queryParams = new URLSearchParams({
     track_name: cleanSong,
     artist_name: cleanArtist
   });
-  if (album) queryParams.append("album_name", cleanQueryString(album));
+  if (album) queryParams.append("album_name", cleanTrackName(album));
   if (duration) queryParams.append("duration", duration.toString());
 
   const url = `${LRCLIB_API_BASE}/api/get`;
@@ -77,8 +76,8 @@ async function fetchLyricsLrcLib(song, artist, album = null, duration = null, re
  * 각 항목을 "[mm:ss.xx] text" 형식의 문자열로 변환하여 반환합니다.
  */
 async function fetchLyricsMusixmatch(song, artist, retries = 1) {
-  const cleanSong = cleanQueryString(song);
-  const cleanArtist = cleanQueryString(artist);
+  const cleanSong = cleanTrackName(song);
+  const cleanArtist = cleanArtistName(artist);
   const url = "https://musixmatch-lyrics-songs.p.rapidapi.com/songs/lyrics";
   const querystring = new URLSearchParams({
     t: cleanSong,
@@ -105,18 +104,12 @@ async function fetchLyricsMusixmatch(song, artist, retries = 1) {
     }
 
     const data = await response.json();
-    // 만약 API 응답이 리스트 형태라면 타임스탬프와 텍스트를 포맷합니다.
-    if (Array.isArray(data) && data.length > 0) {
-      const formatted = data.map(item => {
-        const t = item.time || {};
-        const minutes = t.minutes || 0;
-        const seconds = t.seconds || 0;
-        const hundredths = t.hundredths || 0;
-        // "mm:ss.xx" 형식으로 생성
-        const formattedTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(hundredths).padStart(2, '0')}`;
-        return `[${formattedTime}] ${item.text || ""}`;
-      }).join('\n');
-      return formatted;
+    if (!data || data.error) {
+      console.warn("⚠️ [백엔드] Musixmatch에서 가사 데이터를 찾지 못했습니다.");
+      return null;
+    }
+    if (Array.isArray(data)) {
+      return data.map(line => line.text).join('\n');
     }
 
     // 리스트 형태가 아니라면 기존 방식으로 처리
@@ -135,8 +128,13 @@ router.get('/', async (req, res) => {
   console.log("👉 받은 쿼리 파라미터:", req.query);
 
   const { track_id, song, artist, album, duration, englishTrackName, englishArtistName } = req.query;
-  const trackNameToSearch = englishTrackName || song;
-  const artistNameToSearch = englishArtistName || artist;
+  const trackNameToSearch = (englishTrackName && englishTrackName.trim() !== "") ? englishTrackName : song;
+  const artistNameToSearch = (englishArtistName && englishArtistName.trim() !== "") ? englishArtistName : artist;
+
+  const cleanedTrackName = cleanTrackName(trackNameToSearch);
+  const cleanedArtistName = cleanArtistName(artistNameToSearch);
+  console.log("정제된 곡명:", cleanedTrackName);
+  console.log("정제된 아티스트명:", cleanedArtistName);
 
   if (track_id) {
     try {
@@ -165,7 +163,7 @@ router.get('/', async (req, res) => {
   // LRCLIB API 2회 시도
   for (let i = 0; i < 2; i++) {
     console.log(`📡 [백엔드] LRCLIB API 시도 ${i + 1}번째`);
-    lyrics = await fetchLyricsLrcLib(trackNameToSearch, artistNameToSearch, album, duration, 1);
+    lyrics = await fetchLyricsLrcLib(cleanedTrackName, cleanedArtistName, album, duration, 1);
     if (lyrics) break;
     // 시도 간 1초 대기
     await new Promise(res => setTimeout(res, 1000));
@@ -177,7 +175,7 @@ router.get('/', async (req, res) => {
     console.warn("⚠️ [백엔드] LRCLIB에서 가사를 찾지 못했습니다. Musixmatch API를 호출합니다.");
     for (let i = 0; i < 2; i++) {
       console.log(`📡 [백엔드] Musixmatch API 시도 ${i + 1}번째`);
-      lyrics = await fetchLyricsMusixmatch(trackNameToSearch, artistNameToSearch, 1);
+      lyrics = await fetchLyricsMusixmatch(cleanedTrackName, cleanedArtistName, 1);
       if (lyrics) break;
       await new Promise(res => setTimeout(res, 1000));
     }

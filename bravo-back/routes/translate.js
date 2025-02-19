@@ -257,7 +257,7 @@ router.post('/', async (req, res) => {
     res.write(`data: ${JSON.stringify({ stage: 'update', translation: '번역 보정 진행중...' })}\n\n`);
 
     // 3. AI 번역(최종 번역) 진행 및 결과 전송
-    let refinedResult = await refineTranslation(lyrics, amazonResult);
+    let refinedResult = await refineTranslation(amazonResult);
 
     // fallback: Claude 거부 메시지 감지 시 Amazon Translate 결과 사용
     if (
