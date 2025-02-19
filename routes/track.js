@@ -44,4 +44,24 @@ router.post('/', async (req, res) => {
   }
 });
 
+
+// GET /api/track?track_id=...
+router.get('/', async (req, res) => {
+  const { track_id } = req.query;
+  if (!track_id) {
+    return res.status(400).json({ error: 'track_id parameter is required' });
+  }
+  try {
+    const track = await Track.findOne({ track_id });
+    if (track) {
+      res.json({ streaming_id: track.streaming_id });
+    } else {
+      res.status(404).json({ error: 'Track not found' });
+    }
+  } catch (error) {
+    console.error('Error fetching track:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

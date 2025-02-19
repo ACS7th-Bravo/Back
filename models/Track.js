@@ -1,4 +1,5 @@
-// Track.js
+//bravo-back/models/Track.js
+
 import mongoose from 'mongoose';
 const trackSchema = new mongoose.Schema({
     track_id: { type: String, required: true, unique: true },

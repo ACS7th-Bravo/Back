@@ -20,6 +20,9 @@ function rotateApiKey() {
   );
 }
 
+// Math.random
+//get apikey로 바꾼다음에 api키 env값에서 랜덤으로 값을 가져온다다
+
 // GET /api/youtube/search?trackName=...&artistName=...
 router.get("/search", async (req, res) => {
   // 요청 시마다 API 키를 라운드로빈 방식으로 변경

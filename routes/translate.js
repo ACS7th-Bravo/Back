@@ -145,7 +145,7 @@ ${amazonTranslation}
     // 후처리: "Here is" 로 시작하는 문장 제거 (대소문자 무시)
     refinedLyrics = refinedLyrics.replace(/^Here is.*\n?/i, '').trim();
 
-    console.log(refinedLyrics);
+    console.log("✅ 최종 번역 결과:",refinedLyrics);
     return refinedLyrics;
   } catch (error) {
     console.error("❌ Claude 3.5 번역 보정 요청 실패:", error);
@@ -195,8 +195,28 @@ async function processTranslation(lyrics) {
   return refinedResult;
 }
 
-router.post('/', async (req, res) => { // 번역 요청 처리
-  const { lyrics, track_id } = req.body;
+router.post('/', async (req, res) => { 
+  let { lyrics, track_id } = req.body;
+
+  // track_id가 있다면 DB에서 해당 트랙 정보를 조회합니다.
+  if (track_id) {
+    try {
+      const trackDoc = await Track.findOne({ track_id });
+      if (trackDoc && trackDoc.lyrics_translation) {
+        console.log("✅ DB에 저장된 번역 가사가 있습니다. 바로 반환합니다.");
+        res.write(`data: ${JSON.stringify({ stage: 'refined', translation: trackDoc.lyrics_translation })}\n\n`);
+        return res.end();
+      }
+      // DB에 번역된 가사가 없다면 plain_lyrics를 번역에 사용합니다.
+      if (trackDoc && trackDoc.plain_lyrics) {
+        lyrics = trackDoc.plain_lyrics;
+        console.log("✅ DB에 번역된 가사가 없으므로, plain_lyrics를 번역에 사용합니다.");
+      }
+    } catch (err) {
+      console.error("❌ DB 조회 오류:", err);
+    }
+  }
+
   if (!lyrics) {
     res.status(400).json({ error: "원문 가사를 제공하세요." });
     return;
