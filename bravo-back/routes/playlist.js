@@ -12,6 +12,12 @@ router.post('/', async (req, res) => {
     if (!email || !name) {
       return res.status(400).json({ error: 'email과 name은 필수입니다.' });
     }
+
+    // [변경됨] 동일한 이름의 플레이리스트가 이미 존재하는지 확인
+    const existingPlaylist = await Playlist.findOne({ email, name });
+    if (existingPlaylist) {
+      return res.status(400).json({ error: '이미 해당 이름의 플레이 리스트가 존재합니다.' });
+    }
     // 새로운 플레이리스트 그룹 생성
     const newPlaylist = new Playlist({
       email,
