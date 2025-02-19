@@ -48,6 +48,22 @@ router.get('/', async (req, res) => {
   }
 });
 
+// <<추가>> 단일 플레이리스트 상세 정보를 ID로 조회하는 라우트 추가
+router.get('/:playlistId', async (req, res) => {  // 추가된 부분
+  try {
+    const { playlistId } = req.params;        // 추가된 부분: URL 파라미터로부터 playlistId 추출
+    const playlist = await Playlist.findById(playlistId);  // 추가된 부분: ID로 조회
+    if (!playlist) {                          // 추가된 부분
+      return res.status(404).json({ error: '플레이리스트를 찾을 수 없습니다.' });  // 추가된 부분
+    }
+    res.status(200).json(playlist);            // 추가된 부분
+  } catch (error) {                            // 추가된 부분
+    console.error('플레이리스트 상세 정보 조회 실패:', error);  // 추가된 부분
+    res.status(500).json({ error: error.message });  // 추가된 부분
+  }
+});
+// <<끝>> 단일 플레이리스트 상세 정보를 ID로 조회하는 라우트 추가
+
 router.patch('/:playlistId', async (req, res) => {
   try {
     const { playlistId } = req.params;
